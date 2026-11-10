@@ -298,7 +298,7 @@ def get_thresholds(lat: float, lon: float, offline: bool = False):
 
     ps = prefix_sums(precip)          # 前缀和：4 个窗口长度一次遍历即可
     n = len(precip)
-    cum = {h: [window_sum(ps, i, h) for i in range(n)] for h in (1, 3, 6, 24)}
+    cum = {f"{h}h": [window_sum(ps, i, h) for i in range(n)] for h in (1, 3, 6, 24)}
     th = {
         k: max(THRESHOLD_FLOORS[k], pct(cum[k], THRESHOLD_PERCENTILES[k]))
         for k in ("1h", "3h", "6h", "24h")

@@ -19,25 +19,56 @@ import math
 import os
 import random
 import sys
+import time
 import urllib.parse
 import urllib.request
 
 from .astro import solar_position
 from .common import UTC, nearest_index, parse_dt, prefix_sums, pct, to_float_list, window_sum
+from .contract import (ARCHIVE_DAYS, DEFAULT_THRESHOLDS, ENDPOINTS, FORECAST_DAYS,
+                       HOURLY_FIELD_NAMES, PAST_DAYS, THRESHOLD_FLOORS,
+                       THRESHOLD_PERCENTILES)
 from .physics import (dew_point, ghi_to_lux, ineichen_clear_sky, linke_turbidity_estimate)
 
-# 需要的逐时字段（顺序即 URL 顺序，便于日志排查）
-HOURLY_FIELDS = ",".join([
-    "temperature_2m", "relative_humidity_2m", "dew_point_2m",
-    "precipitation", "precipitation_probability", "pressure_msl", "surface_pressure",
-    "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m", "cloud_cover",
-    "shortwave_radiation", "uv_index", "cape", "soil_moisture_0_to_1cm", "visibility",
-])
-
-# 无历史数据时的临界雨量初值（中小流域经验值，mm）
-DEFAULT_THRESHOLDS = {"1h": 12.0, "3h": 24.0, "6h": 34.0, "24h": 64.0}
+# 需要的逐时字段（顺序即 URL 顺序，便于日志排查）；字段清单见 contract.py
+HOURLY_FIELDS = ",".join(HOURLY_FIELD_NAMES)
 
 _CACHE = {}
+
+# 可选磁盘缓存：仅当显式设置 CARWEATHER_CACHE_DIR 时启用。
+# 车机可指向持久分区，避免每次冷启动都重拉 365 天 ERA5 历史。
+_CACHE_DIR = os.environ.get("CARWEATHER_CACHE_DIR", "").strip()
+_THRESHOLD_TTL_S = 30 * 24 * 3600
+
+
+def _disk_path(kind: str, lat: float, lon: float):
+    if not _CACHE_DIR:
+        return None
+    return os.path.join(_CACHE_DIR, f"{kind}_{lat:.2f}_{lon:.2f}.json")
+
+
+def _disk_get(path, ttl: float):
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            record = json.load(f)
+        if time.time() - float(record.get("at", 0)) > ttl:
+            return None
+        return record.get("value")
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _disk_put(path, value):
+    if not path:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"at": time.time(), "value": value}, f)
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------
@@ -66,10 +97,10 @@ def _cache_put(key, value):
 
 def fetch_open_meteo(lat: float, lon: float):
     """拉取目的地逐时预报（过去 1 天 + 未来 3 天），返回统一结构。"""
-    url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode({
+    url = ENDPOINTS["forecast"] + "?" + urllib.parse.urlencode({
         "latitude": lat, "longitude": lon, "hourly": HOURLY_FIELDS,
         "daily": "sunrise,sunset", "timezone": "UTC",
-        "past_days": 1, "forecast_days": 3,
+        "past_days": PAST_DAYS, "forecast_days": FORECAST_DAYS,
     })
     j = http_json(url)
     h = j["hourly"]
@@ -188,7 +219,7 @@ def get_elevation(lat: float, lon: float, offline: bool = False) -> float:
     if offline:
         return _cache_put(key, 50.0)
     try:
-        j = http_json("https://api.open-meteo.com/v1/elevation?" + urllib.parse.urlencode(
+        j = http_json(ENDPOINTS["elevation"] + "?" + urllib.parse.urlencode(
             {"latitude": lat, "longitude": lon}))
         return _cache_put(key, float(j["elevation"][0]))
     except Exception:
@@ -219,7 +250,7 @@ def get_slope(lat: float, lon: float, offline: bool = False) -> float:
             "latitude": ",".join(f"{x:.4f}" for x in lats),
             "longitude": ",".join(f"{x:.4f}" for x in lons),
         })
-        e = [float(x) for x in http_json("https://api.open-meteo.com/v1/elevation?" + q)["elevation"]]
+        e = [float(x) for x in http_json(ENDPOINTS["elevation"] + "?" + q)["elevation"]]
     except Exception:
         return _cache_put(key, 8.0)
 
@@ -244,13 +275,19 @@ def get_thresholds(lat: float, lon: float, offline: bool = False):
     hit = _cache_get(key)
     if hit is not None:
         return hit
+
+    cache_file = _disk_path("thresholds", lat, lon)
+    hit = _disk_get(cache_file, _THRESHOLD_TTL_S)
+    if hit is not None:
+        return _cache_put(key, hit)
+
     if offline:
         return _cache_put(key, dict(DEFAULT_THRESHOLDS, source="default"))
 
     try:
         end = dt.date.today() - dt.timedelta(days=1)
-        start = end - dt.timedelta(days=365)
-        url = "https://archive-api.open-meteo.com/v1/archive?" + urllib.parse.urlencode({
+        start = end - dt.timedelta(days=ARCHIVE_DAYS)
+        url = ENDPOINTS["archive"] + "?" + urllib.parse.urlencode({
             "latitude": lat, "longitude": lon,
             "start_date": start.isoformat(), "end_date": end.isoformat(),
             "hourly": "precipitation", "timezone": "UTC",
@@ -263,12 +300,11 @@ def get_thresholds(lat: float, lon: float, offline: bool = False):
     n = len(precip)
     cum = {h: [window_sum(ps, i, h) for i in range(n)] for h in (1, 3, 6, 24)}
     th = {
-        "1h": max(8.0, pct(cum[1], 0.98)),
-        "3h": max(15.0, pct(cum[3], 0.98)),
-        "6h": max(20.0, pct(cum[6], 0.98)),
-        "24h": max(40.0, pct(cum[24], 0.95)),
-        "source": "archive-era5",
+        k: max(THRESHOLD_FLOORS[k], pct(cum[k], THRESHOLD_PERCENTILES[k]))
+        for k in ("1h", "3h", "6h", "24h")
     }
+    th["source"] = "archive-era5"
+    _disk_put(cache_file, th)
     return _cache_put(key, th)
 
 

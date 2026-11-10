@@ -1,0 +1,303 @@
+{
+  "schemaVersion": "1.0.0",
+  "timezone": {
+    "internal": "UTC",
+    "display": "+08:00",
+    "sensorLog": "+08:00"
+  },
+  "endpoints": {
+    "forecast": "https://api.open-meteo.com/v1/forecast",
+    "archive": "https://archive-api.open-meteo.com/v1/archive",
+    "elevation": "https://api.open-meteo.com/v1/elevation"
+  },
+  "hourly": {
+    "request": {
+      "pastDays": 1,
+      "forecastDays": 3,
+      "cellSelection": "nearest"
+    },
+    "fields": [
+      {
+        "name": "temperature_2m",
+        "unit": "°C",
+        "min": -60.0,
+        "max": 60.0,
+        "nullable": true
+      },
+      {
+        "name": "relative_humidity_2m",
+        "unit": "%",
+        "min": 0.0,
+        "max": 100.0,
+        "nullable": true
+      },
+      {
+        "name": "dew_point_2m",
+        "unit": "°C",
+        "min": -90.0,
+        "max": 60.0,
+        "nullable": true
+      },
+      {
+        "name": "precipitation",
+        "unit": "mm",
+        "min": 0.0,
+        "max": 500.0,
+        "nullable": true
+      },
+      {
+        "name": "precipitation_probability",
+        "unit": "%",
+        "min": 0.0,
+        "max": 100.0,
+        "nullable": true
+      },
+      {
+        "name": "pressure_msl",
+        "unit": "hPa",
+        "min": 800.0,
+        "max": 1100.0,
+        "nullable": true
+      },
+      {
+        "name": "surface_pressure",
+        "unit": "hPa",
+        "min": 500.0,
+        "max": 1100.0,
+        "nullable": true
+      },
+      {
+        "name": "wind_speed_10m",
+        "unit": "m/s",
+        "min": 0.0,
+        "max": 120.0,
+        "nullable": true
+      },
+      {
+        "name": "wind_gusts_10m",
+        "unit": "m/s",
+        "min": 0.0,
+        "max": 150.0,
+        "nullable": true
+      },
+      {
+        "name": "wind_direction_10m",
+        "unit": "°",
+        "min": 0.0,
+        "max": 360.0,
+        "nullable": true
+      },
+      {
+        "name": "cloud_cover",
+        "unit": "%",
+        "min": 0.0,
+        "max": 100.0,
+        "nullable": true
+      },
+      {
+        "name": "shortwave_radiation",
+        "unit": "W/m²",
+        "min": 0.0,
+        "max": 1500.0,
+        "nullable": true
+      },
+      {
+        "name": "uv_index",
+        "unit": "1",
+        "min": 0.0,
+        "max": 20.0,
+        "nullable": true
+      },
+      {
+        "name": "cape",
+        "unit": "J/kg",
+        "min": 0.0,
+        "max": 10000.0,
+        "nullable": true
+      },
+      {
+        "name": "soil_moisture_0_to_1cm",
+        "unit": "m³/m³",
+        "min": 0.0,
+        "max": 1.0,
+        "nullable": true
+      },
+      {
+        "name": "visibility",
+        "unit": "m",
+        "min": 0.0,
+        "max": 100000.0,
+        "nullable": true
+      }
+    ]
+  },
+  "sensor": {
+    "columns": [
+      {
+        "name": "time",
+        "unit": "ISO8601 +08:00",
+        "min": null,
+        "max": null,
+        "nullable": true
+      },
+      {
+        "name": "mode",
+        "unit": "parked|driving|empty",
+        "min": null,
+        "max": null,
+        "nullable": true
+      },
+      {
+        "name": "t_c",
+        "unit": "°C",
+        "min": -40.0,
+        "max": 60.0,
+        "nullable": true
+      },
+      {
+        "name": "rh_pct",
+        "unit": "%",
+        "min": 0.0,
+        "max": 100.0,
+        "nullable": true
+      },
+      {
+        "name": "p_sta_hpa",
+        "unit": "hPa",
+        "min": 800.0,
+        "max": 1080.0,
+        "nullable": true
+      },
+      {
+        "name": "rain_mm",
+        "unit": "mm/采样",
+        "min": 0.0,
+        "max": 30.0,
+        "nullable": true
+      },
+      {
+        "name": "lux",
+        "unit": "lx",
+        "min": 0.0,
+        "max": 130000.0,
+        "nullable": true
+      },
+      {
+        "name": "speed_kmh",
+        "unit": "km/h",
+        "min": 0.0,
+        "max": 250.0,
+        "nullable": true
+      }
+    ],
+    "parked": {
+      "modeValues": [
+        "parked"
+      ],
+      "speedMaxKmh": 3.0,
+      "preheatMin": 5.0
+    },
+    "qc": {
+      "ranges": {
+        "t_c": [
+          -40.0,
+          60.0
+        ],
+        "rh_pct": [
+          0.0,
+          100.0
+        ],
+        "p_sta_hpa": [
+          800.0,
+          1080.0
+        ],
+        "rain_mm": [
+          0.0,
+          30.0
+        ],
+        "lux": [
+          0.0,
+          130000.0
+        ],
+        "speed_kmh": [
+          0.0,
+          250.0
+        ]
+      }
+    }
+  },
+  "decision": {
+    "stayHoursDefault": 12.0,
+    "floodHorizonH": 48,
+    "fishingHorizonH": 48,
+    "oi": {
+      "weightMin": 0.4,
+      "weightMax": 0.75,
+      "qcPenalty": 0.12
+    }
+  },
+  "thresholds": {
+    "defaults": {
+      "1h": 12.0,
+      "3h": 24.0,
+      "6h": 34.0,
+      "24h": 64.0
+    },
+    "floors": {
+      "1h": 8.0,
+      "3h": 15.0,
+      "6h": 20.0,
+      "24h": 40.0
+    },
+    "percentiles": {
+      "1h": 0.98,
+      "3h": 0.98,
+      "6h": 0.98,
+      "24h": 0.95
+    },
+    "archiveDays": 365,
+    "sourceValues": [
+      "archive-era5",
+      "default"
+    ]
+  },
+  "utci": {
+    "domain": {
+      "tdb": [
+        -50.0,
+        50.0
+      ],
+      "dtr": [
+        -30.0,
+        70.0
+      ],
+      "v10": [
+        0.5,
+        17.0
+      ],
+      "rh": [
+        0.0,
+        100.0
+      ]
+    }
+  },
+  "output": {
+    "stages": [
+      "pre_departure",
+      "post_arrival"
+    ],
+    "keys": [
+      "meta",
+      "flood",
+      "camping",
+      "fishing",
+      "actions"
+    ],
+    "correctExtraKeys": [
+      "observed",
+      "corrections",
+      "delta",
+      "baseline"
+    ]
+  }
+}

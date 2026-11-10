@@ -16,14 +16,11 @@ import datetime as dt
 
 from .astro import solar_position
 from .common import UTC, iso_local, nearest_index, rnd
+from .contract import (OI_QC_PENALTY, OI_WEIGHT_MAX, OI_WEIGHT_MIN, PARKED_SPEED_KMH,
+                       PREHEAT_MIN, STAY_HOURS_DEFAULT)
 from .models import actions, camping_model, confidence, fishing_model, flood_model
 from .physics import dew_point, ineichen_clear_sky, linke_turbidity_estimate, lux_to_ghi
 from .sources import get_elevation, get_slope, get_thresholds, load_sensor_csv, load_weather
-
-# 预热丢弃时长：驻车后传感器（尤其温湿度）需要热平衡
-_PREHEAT_MIN = 5.0
-# 单点 OI 权重范围
-_W_MIN, _W_MAX = 0.4, 0.75
 
 
 # --------------------------------------------------------------------------
@@ -32,7 +29,7 @@ _W_MIN, _W_MAX = 0.4, 0.75
 
 def _is_parked(r) -> bool:
     """驻车判定：显式 mode=parked，或未给 mode 但速度 < 3 km/h。"""
-    return r["mode"] == "parked" or (r["mode"] == "" and r["speed"] < 3.0)
+    return r["mode"] == "parked" or (r["mode"] == "" and r["speed"] < PARKED_SPEED_KMH)
 
 
 def aggregate_obs(rows, lat: float, lon: float, elevation_m: float = 50.0):
@@ -49,7 +46,7 @@ def aggregate_obs(rows, lat: float, lon: float, elevation_m: float = 50.0):
     if not parked:
         raise ValueError("没有可用的驻车样本（传感器仅在驻车状态参与计算）")
 
-    start = parked[0]["dt"] + dt.timedelta(minutes=_PREHEAT_MIN)
+    start = parked[0]["dt"] + dt.timedelta(minutes=PREHEAT_MIN)
     valid = [r for r in parked if r["dt"] >= start]
     if not valid:
         raise ValueError("驻车样本不足 5 分钟预热期")
@@ -142,7 +139,7 @@ def assimilate(w, idx: int, obs, weight: float):
 # 推理入口
 # --------------------------------------------------------------------------
 
-def predict(lat: float, lon: float, eta: dt.datetime, stay_hours: float = 12,
+def predict(lat: float, lon: float, eta: dt.datetime, stay_hours: float = STAY_HOURS_DEFAULT,
             offline: bool = False):
     """出发前：纯预报推理。"""
     w = load_weather(lat, lon, offline=offline)
@@ -177,7 +174,7 @@ def predict(lat: float, lon: float, eta: dt.datetime, stay_hours: float = 12,
 
 
 def correct(csv_path: str, lat: float, lon: float, eta: dt.datetime | None = None,
-            stay_hours: float = 12, offline: bool = False):
+            stay_hours: float = STAY_HOURS_DEFAULT, offline: bool = False):
     """抵达驻车后：实测同化 + 三任务重算，并输出与出发前的 delta。"""
     rows = load_sensor_csv(csv_path)
     elevation = get_elevation(lat, lon, offline=offline)
@@ -189,7 +186,7 @@ def correct(csv_path: str, lat: float, lon: float, eta: dt.datetime | None = Non
     w = load_weather(lat, lon, offline=offline)
     idx = nearest_index(w["times"], arrival)
     # QC 问题越多，越不信任实测（权重下限 0.4，上限 0.75）
-    weight = max(_W_MIN, _W_MAX - 0.12 * len(obs["qc_flags"]))
+    weight = max(OI_WEIGHT_MIN, OI_WEIGHT_MAX - OI_QC_PENALTY * len(obs["qc_flags"]))
     wc = assimilate(w, idx, obs, weight)
 
     slope = get_slope(lat, lon, offline=offline)

@@ -15,6 +15,7 @@ import json
 import sys
 
 from .common import parse_dt
+from .contract import STAY_HOURS_DEFAULT
 from .pipeline import correct, predict
 from .sources import make_sample
 
@@ -45,7 +46,7 @@ def main(argv=None):
     p1.add_argument("--lat", type=float, required=True)
     p1.add_argument("--lon", type=float, required=True)
     p1.add_argument("--eta", required=True)
-    p1.add_argument("--stay-hours", type=float, default=12)
+    p1.add_argument("--stay-hours", type=float, default=STAY_HOURS_DEFAULT)
     p1.add_argument("--offline", action="store_true")
     p1.add_argument("--out")
     p1.add_argument("--summary", action="store_true")
@@ -55,7 +56,7 @@ def main(argv=None):
     p2.add_argument("--lat", type=float, required=True)
     p2.add_argument("--lon", type=float, required=True)
     p2.add_argument("--eta")
-    p2.add_argument("--stay-hours", type=float, default=12)
+    p2.add_argument("--stay-hours", type=float, default=STAY_HOURS_DEFAULT)
     p2.add_argument("--offline", action="store_true")
     p2.add_argument("--out")
     p2.add_argument("--summary", action="store_true")
